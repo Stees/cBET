@@ -20,7 +20,7 @@ if 'login0a.mpi.sam.pitt.edu' in host:
     #figure out what is in the queue
     currentJobs = subprocess.Popen("squeue -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
     activeJobs = currentJobs.communicate()[0].split()
-    print('{0}'.format(activeJobs))
+    #print('{0}'.format(activeJobs))
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules1 = sStructures.communicate()[0].split()
@@ -45,11 +45,11 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                     getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
                     v = Decimal(getEnergy.communicate()[0].split()[8])
                     d[k].append(v)
-    else:
-        getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
-        tempNumber = getNumber.communicate()[0]
-        if tempNumber not in activeJobs:
-            print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
+                else:
+                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
+                    tempNumber = getNumber.communicate()[0]
+                    if tempNumber not in activeJobs:
+                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
     #get the names of the interaction configurations
@@ -90,80 +90,77 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                         else:
                             getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                             tempNumber = getNumber.communicate()[0].split()[0]
-                            print('{0}'.format(tempNumber))
+                            #print('{0}'.format(tempNumber))
 
-                        if tempNumber not in activeJobs:
-                            break
-                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(innerLocation))
-                        print('Restarting...\n')
-                        #open the jobscript, replace the name of the input file with the name of the restart file
-                        jobfile = open(innerLocation+'job.slurm','r')
-                        modLines = jobfile.readlines()
-                        jobfile.close()
-                        newJobFile = open(innerLocation+'newJob.slurm','w')
-                        for line in modLines:
-                            if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
-                                newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
-                            else:
-                                newJobFile.write(line)
-                        newJobFile.close()
-                        changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
-                        #start the job
-                        startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                        jobNumber = startJob.communicate()[0].split()[3]
-                        print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
-                        #remove old job number from directory, write the new one
-                        subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
-                        subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
-                        break
+                            if tempNumber not in activeJobs:
+                                print('\n\n\n*****Walltime likely exceeded*****\n{0}\n'.format(innerLocation))
+                                print('Restarting...\n')
+                                #open the jobscript, replace the name of the input file with the name of the restart file
+                                jobfile = open(innerLocation+'job.slurm','r')
+                                modLines = jobfile.readlines()
+                                jobfile.close()
+                                newJobFile = open(innerLocation+'newJob.slurm','w')
+                                for line in modLines:
+                                    if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
+                                        newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
+                                    else:
+                                        newJobFile.write(line)
+                                newJobFile.close()
+                                changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
+                                #start the job
+                                startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                                jobNumber = startJob.communicate()[0].split()[3]
+                                print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
+                                #remove old job number from directory, write the new one
+                                subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
+                                subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
 
             d2[k].append(minimum)
             d2[k].append(index)
-            break
 #calculate the interaction energies
 
-    # #allow for selection of only specific analyte to print
-    # filter = 3
-    # # while (filter != 1 and filter != 2):
-    # #     if (filter != 3):
-    # #         print('\nLikely invalid entry. Try again.\n\n')
-    # #     f1 = raw_input('To print energies for all pairs, type 1.\nTo filter data, type 2.\n\n')
-    # #     if not f1:
-    # #         print('\nEnter a value\n')
-    # #         filter = 3
-    # #     else:
-    # #         try:
-    # #             filter = int(f1)
-    # #         except ValueError:
-    # #             print('Invalid entry. Try again.\n')
-    # #     if (filter == 1):
-    # #         #for each key in d2, split the key at the underscore.
-    # #         for key in d2:
-    # #             singleMols = key.split("_")
-    # #             energy1 = d.get(singleMols[0].lower())
-    # #             energy2 = d.get(singleMols[1].lower())
-    # #             interE = d2.get(key)
-    # #             print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-    # #             #2625.5 is conversion factor between hartree and kJ/mol
-    # #             bindingEnergy = Decimal(2625.5)*(interE[0] - (energy1[0] + energy2[0]))
-    # #             print('{0} kJ/mol'.format(bindingEnergy))
-    # #     elif (filter == 2):
-    # #         agent = 'apple'
-    # #         while (agent != 'owl'):
-    # #             if (agent != 'apple'):
-    # #                 print('\nLikely invalid entry. Try again.\n\n')
-    # #             agent = raw_input('Enter the name of an agent.\n')
-    # #             for key in d2:
-    # #                 if agent in key:
-    # #                     singleMols = key.split("_")
-    # #                     energy1 = d.get(singleMols[0].lower())
-    # #                     energy2 = d.get(singleMols[1].lower())
-    # #                     interE = d2.get(key)
-    # #                     print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-    # #                     #2625.5 is conversion factor between hartree and kJ/mol
-    # #                     bindingEnergy = Decimal(2625.5)*(interE[0] - (energy1[0] + energy2[0]))
-    # #                     print('{0} kJ/mol'.format(bindingEnergy))
-    # #             agent = 'owl'
+    #allow for selection of only specific analyte to print
+    filter = 3
+    while (filter != 1 and filter != 2):
+        if (filter != 3):
+            print('\nLikely invalid entry. Try again.\n\n')
+        f1 = raw_input('To print energies for all pairs, type 1.\nTo filter data, type 2.\n\n')
+        if not f1:
+            print('\nEnter a value\n')
+            filter = 3
+        else:
+            try:
+                filter = int(f1)
+            except ValueError:
+                print('Invalid entry. Try again.\n')
+        if (filter == 1):
+            #for each key in d2, split the key at the underscore.
+            for key in d2:
+                singleMols = key.split("_")
+                energy1 = d.get(singleMols[0].lower())
+                energy2 = d.get(singleMols[1].lower())
+                interE = d2.get(key)
+                print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
+                #2625.5 is conversion factor between hartree and kJ/mol
+                bindingEnergy = Decimal(2625.5)*(interE[0] - (energy1[0] + energy2[0]))
+                print('{0} kJ/mol'.format(bindingEnergy))
+        elif (filter == 2):
+            agent = 'apple'
+            while (agent != 'owl'):
+                if (agent != 'apple'):
+                    print('\nLikely invalid entry. Try again.\n\n')
+                agent = raw_input('Enter the name of an agent.\n')
+                for key in d2:
+                    if agent in key:
+                        singleMols = key.split("_")
+                        energy1 = d.get(singleMols[0].lower())
+                        energy2 = d.get(singleMols[1].lower())
+                        interE = d2.get(key)
+                        print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
+                        #2625.5 is conversion factor between hartree and kJ/mol
+                        bindingEnergy = Decimal(2625.5)*(interE[0] - (energy1[0] + energy2[0]))
+                        print('{0} kJ/mol'.format(bindingEnergy))
+                agent = 'owl'
 
 else:
     print('you are logged in to the wrong place. log in to mpi\n')
