@@ -142,7 +142,7 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                 interE = d2.get(key)
                 print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
                 #2625.5 is conversion factor between hartree and kJ/mol
-                bindingEnergy = Decimal(2625.5)*(interE[0] - (energy1[0] + energy2[0]))
+                bindingEnergy = Decimal(str(2625.5))*(interE[0] - (energy1[0] + energy2[0]))
                 print('{0} kJ/mol'.format(bindingEnergy))
         elif (filter == 2):
             agent = 'apple'
