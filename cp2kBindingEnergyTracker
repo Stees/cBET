@@ -38,13 +38,17 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                 #next line will only show calculations that have started running
                 if "geometryOptimization.out" in fileNames:
                     calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
+                    scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
                     calcFlag = calcSuccess.communicate()[0]
+                    scfFlag = scfSuccess.communicate()[0]
 
                 #make sure the success message is present in the file
                 if "OPTIMIZATION" in str(calcFlag):
                     getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
                     v = Decimal(getEnergy.communicate()[0].split()[8])
                     d[k].append(v)
+                elif "WARNING" in str(scfFlag):
+                    print('scf run did not converge in {0}\m'.format(location))
                 else:
                     getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
                     tempNumber = getNumber.communicate()[0]
