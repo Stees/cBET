@@ -167,5 +167,5 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                 agent = 'owl'
 
 else:
-    print('you are logged in to the wrong place. log in to mpi\n')
+    print('\nYou are logged in to the wrong place. Log in to mpi.\n')
 
