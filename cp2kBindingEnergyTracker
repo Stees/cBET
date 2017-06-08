@@ -124,19 +124,19 @@ if 'login0a.mpi.sam.pitt.edu' in host:
 #calculate the interaction energies
 
     #allow for selection of only specific analyte to print
-    filter = 3
-    while (filter != 1 and filter != 2):
-        if (filter != 3):
+    filter = 4
+    while (filter != 1 and filter != 2 and filter != 3):
+        if (filter != 4):
             print('\nLikely invalid entry. Try again.\n\n')
-        f1 = raw_input('To print energies for all pairs, type 1.\nTo filter data, type 2.\n\n')
+        f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo exit, type 3\n\n')
         if not f1:
             print('\nEnter a value\n')
-            filter = 3
+            filter = 4
         else:
             try:
                 filter = int(f1)
             except ValueError:
-                print('Invalid entry. Try again.\n')
+                print('\nInvalid entry. Try again.\n')
         if (filter == 1):
             #for each key in d2, split the key at the underscore.
             for key in d2:
