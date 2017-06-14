@@ -7,6 +7,8 @@ import shutil
 from re import sub
 from collections import defaultdict
 from decimal import *
+import numpy as np
+import time
 
 #set decimal context
 getcontext().prec = 14
@@ -63,10 +65,12 @@ if 'login0a.mpi.sam.pitt.edu' in host:
 
     #make another dictionary for the interaction calculation energies
     d2 = defaultdict(list)
-
-    #get the most negative energy for each interaction
+    d3 = defaultdict(list)
+    #get the most negative energy for each interaction, and every energy for the interaction 
     for iStruct in (interactions1):
         if iStruct.lower() not in d2.keys():
+            tempListAllEnergies = []
+            tempListAllConfigs = []
             k = iStruct
             if iStruct in interactions1:
                 outerLocation = '/ihome/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
@@ -86,6 +90,8 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                         if "OPTIMIZATION" in str(calcFlag2):
                             getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                             v = Decimal(getEnergy.communicate()[0].split()[8])
+                            tempListAllEnergies.append(v)
+                            tempListAllConfigs.append(number)
                             trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
                             if v < minimum:
                                 minimum = v
@@ -112,26 +118,29 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                                 newJobFile.close()
                                 changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
                                 #start the job
+                                subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
                                 startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                                 jobNumber = startJob.communicate()[0].split()[3]
                                 print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
                                 #remove old job number from directory, write the new one
-                                subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
                                 subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
 
             d2[k].append(minimum)
             d2[k].append(index)
-#calculate the interaction energies
+            d3[k].append(tempListAllEnergies)
+            d3[k].append(tempListAllConfigs)
 
+#*******************Part 3*****************************
+#calculate the interaction energies
     #allow for selection of only specific analyte to print
-    filter = 4
-    while (filter != 1 and filter != 2 and filter != 3):
-        if (filter != 4):
+    filter = 5
+    while (filter != 1 and filter != 2 and filter != 3 and filter != 4):
+        if (filter != 5):
             print('\nLikely invalid entry. Try again.\n\n')
-        f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo exit, type 3\n\n')
+        f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4\n\n')
         if not f1:
             print('\nEnter a value\n')
-            filter = 4
+            filter = 5
         else:
             try:
                 filter = int(f1)
@@ -150,12 +159,18 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                 print('{0} kJ/mol'.format(bindingEnergy))
         elif (filter == 2):
             agent = 'apple'
+            flag = 0
             while (agent != 'owl'):
                 if (agent != 'apple'):
-                    print('\nLikely invalid entry. Try again.\n\n')
+                    if (agent == 'more'):
+                        print('\nJust one second...\n')
+                        time.sleep(0.55)
+                    else:
+                        print('\nLikely invalid entry. Try again.\n\n')
                 agent = raw_input('Enter the name of an agent.\n')
                 for key in d2:
                     if agent in key:
+                        flag = 1
                         singleMols = key.split("_")
                         energy1 = d.get(singleMols[0].lower())
                         energy2 = d.get(singleMols[1].lower())
@@ -164,7 +179,65 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                         #2625.5 is conversion factor between hartree and kJ/mol
                         bindingEnergy = Decimal('2625.5')*(interE[0] - (energy1[0] + energy2[0]))
                         print('{0} kJ/mol'.format(bindingEnergy))
-                agent = 'owl'
+                if (flag == 1):
+                    repeat = 's'
+                    while (repeat != 'y' and repeat != 'n'):
+                        if (repeat != 's'):
+                            print('\nInvalid entry. Try again.\n')
+                        repeat = raw_input('\nAdditional data needed? (y/n)\n')
+                        if not repeat:
+                            print('\nEnter a value\n')
+                            repeat = 's'
+                        if (repeat == 'y'):
+                            agent = 'more'
+                        elif (repeat == 'n'):
+                            agent = 'owl'
+        elif (filter == 3):
+            #print all binding energies for a specified molecule
+            agent = 'apple'
+            flag = 0
+            while (agent != 'owl'):
+                pairArray = []
+                if (agent != 'apple'):
+                    if (agent == 'more'):
+                        print('\nJust one second...\n')
+                        time.sleep(0.55)
+                    else:
+                        print('\nLikely invalid entry. Try again.')
+                print('\nInteraction Pairs:')
+                for counter, key in enumerate(d2):
+                    print('{0}: {1}'.format(counter,key))
+                    pairArray.append(key)
+                pairs = raw_input('\nEnter the numbers corresponding to interaction pairs you desire.\nInvalid entries will be ignored.\n')
+                if not pairs:
+                    print('\nEnter a value.\n')
+                    time.sleep(0.75)
+                pairList = np.unique(np.array([int(s) for s in pairs.split() if s.isdigit()]))
+                for pair in pairList:
+                    if (pair <= counter):
+                        print('\n{0}'.format(pairArray[pair]))
+                        time.sleep(0.75)
+                        flag = 1
+                        singleMols = pairArray[pair].split("_")
+                        energy1 = d.get(singleMols[0].lower())
+                        energy2 = d.get(singleMols[1].lower())
+                        interE = d3.get(pairArray[pair])
+                        for j, step in enumerate(interE[0]):
+                            bindingEnergy = Decimal('2625.5')*(step - (energy1[0] + energy2[0]))
+                            print('config {0}, {1} kJ/mol\n'.format(interE[1][j].replace("/",""), bindingEnergy))
+                if (flag == 1):
+                    repeat = 's'
+                    while (repeat != 'y' and repeat != 'n'):
+                        if (repeat != 's'):
+                            print('\nInvalid entry. Try again.\n')
+                        repeat = raw_input('\nAdditional data needed? (y/n)\n')
+                        if not repeat:
+                            print('\nEnter a value\n')
+                            repeat = 's'
+                        if (repeat == 'y'):
+                            agent = 'more'
+                        elif (repeat == 'n'):
+                            agent = 'owl'
 
 else:
     print('\nYou are logged in to the wrong place. Log in to mpi.\n')
