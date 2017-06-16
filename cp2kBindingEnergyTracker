@@ -130,115 +130,130 @@ if 'login0a.mpi.sam.pitt.edu' in host:
             d3[k].append(tempListAllEnergies)
             d3[k].append(tempListAllConfigs)
 
-#*******************Part 3*****************************
+#*******************Part 3: data output
 #calculate the interaction energies
     #allow for selection of only specific analyte to print
     filter = 5
-    while (filter != 1 and filter != 2 and filter != 3 and filter != 4):
-        if (filter != 5):
-            print('\nLikely invalid entry. Try again.\n\n')
-        f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4\n\n')
-        if not f1:
-            print('\nEnter a value\n')
-            filter = 5
-        else:
-            try:
-                filter = int(f1)
-            except ValueError:
-                print('\nInvalid entry. Try again.\n')
-        if (filter == 1):
-            #for each key in d2, split the key at the underscore.
-            for key in d2:
-                singleMols = key.split("_")
-                energy1 = d.get(singleMols[0].lower())
-                energy2 = d.get(singleMols[1].lower())
-                interE = d2.get(key)
-                print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-                #2625.5 is conversion factor between hartree and kJ/mol
-                bindingEnergy = Decimal(str(2625.5))*(interE[0] - (energy1[0] + energy2[0]))
-                print('{0} kJ/mol'.format(bindingEnergy))
-        elif (filter == 2):
-            agent = 'apple'
-            flag = 0
-            while (agent != 'owl'):
-                if (agent != 'apple'):
-                    if (agent == 'more'):
-                        print('\nJust one second...\n')
-                        time.sleep(0.55)
-                    else:
-                        print('\nLikely invalid entry. Try again.\n\n')
-                agent = raw_input('Enter the name of an agent.\n')
+    switchType = 1
+    while (switchType != 0):
+        while (filter != 1 and filter != 2 and filter != 3 and filter != 4):
+            if (filter != 5):
+                print('\nLikely invalid entry. Try again.\n\n')
+            f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4\n\n')
+            if not f1:
+                print('\nEnter a value\n')
+                filter = 5
+            else:
+                try:
+                    filter = int(f1)
+                except ValueError:
+                    print('\nInvalid entry. Try again.\n')
+            if (filter == 1):
+                #for each key in d2, split the key at the underscore.
                 for key in d2:
-                    if agent in key:
-                        flag = 1
-                        singleMols = key.split("_")
-                        energy1 = d.get(singleMols[0].lower())
-                        energy2 = d.get(singleMols[1].lower())
-                        interE = d2.get(key)
-                        print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-                        #2625.5 is conversion factor between hartree and kJ/mol
-                        bindingEnergy = Decimal('2625.5')*(interE[0] - (energy1[0] + energy2[0]))
-                        print('{0} kJ/mol'.format(bindingEnergy))
-                if (flag == 1):
-                    repeat = 's'
-                    while (repeat != 'y' and repeat != 'n'):
-                        if (repeat != 's'):
-                            print('\nInvalid entry. Try again.\n')
-                        repeat = raw_input('\nAdditional data needed? (y/n)\n')
-                        if not repeat:
-                            print('\nEnter a value\n')
-                            repeat = 's'
-                        if (repeat == 'y'):
-                            agent = 'more'
-                        elif (repeat == 'n'):
-                            agent = 'owl'
-        elif (filter == 3):
-            #print all binding energies for a specified molecule
-            agent = 'apple'
-            flag = 0
-            while (agent != 'owl'):
-                pairArray = []
-                if (agent != 'apple'):
-                    if (agent == 'more'):
-                        print('\nJust one second...\n')
-                        time.sleep(0.55)
-                    else:
-                        print('\nLikely invalid entry. Try again.')
-                print('\nInteraction Pairs:')
-                for counter, key in enumerate(d2):
-                    print('{0}: {1}'.format(counter,key))
-                    pairArray.append(key)
-                pairs = raw_input('\nEnter the numbers corresponding to interaction pairs you desire.\nInvalid entries will be ignored.\n')
-                if not pairs:
-                    print('\nEnter a value.\n')
-                    time.sleep(0.75)
-                pairList = np.unique(np.array([int(s) for s in pairs.split() if s.isdigit()]))
-                for pair in pairList:
-                    if (pair <= counter):
-                        print('\n{0}'.format(pairArray[pair]))
+                    singleMols = key.split("_")
+                    energy1 = d.get(singleMols[0].lower())
+                    energy2 = d.get(singleMols[1].lower())
+                    interE = d2.get(key)
+                    print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
+                    #2625.5 is conversion factor between hartree and kJ/mol
+                    bindingEnergy = Decimal(str(2625.5))*(interE[0] - (energy1[0] + energy2[0]))
+                    print('{0} kJ/mol'.format(bindingEnergy))
+            elif (filter == 2):
+                agent = 'apple'
+                flag = 0
+                while (agent != 'owl'):
+                    if (agent != 'apple'):
+                        if (agent == 'more'):
+                            print('\nJust one second...\n')
+                            time.sleep(0.55)
+                        else:
+                            print('\nLikely invalid entry. Try again.\n\n')
+                    agent = raw_input('Enter the name of an agent.\n')
+                    for key in d2:
+                        if agent in key:
+                            flag = 1
+                            singleMols = key.split("_")
+                            energy1 = d.get(singleMols[0].lower())
+                            energy2 = d.get(singleMols[1].lower())
+                            interE = d2.get(key)
+                            print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
+                            #2625.5 is conversion factor between hartree and kJ/mol
+                            bindingEnergy = Decimal('2625.5')*(interE[0] - (energy1[0] + energy2[0]))
+                            print('{0} kJ/mol'.format(bindingEnergy))
+                    if (flag == 1):
+                        repeat = 's'
+                        while (repeat != 'y' and repeat != 'n'):
+                            if (repeat != 's'):
+                                print('\nInvalid entry. Try again.\n')
+                            repeat = raw_input('\nAdditional data needed? (y/n)\n')
+                            if not repeat:
+                                print('\nEnter a value\n')
+                                repeat = 's'
+                            if (repeat == 'y'):
+                                agent = 'more'
+                            elif (repeat == 'n'):
+                                agent = 'owl'
+            elif (filter == 3):
+                #print all binding energies for a specified molecule
+                agent = 'apple'
+                flag = 0
+                while (agent != 'owl'):
+                    pairArray = []
+                    if (agent != 'apple'):
+                        if (agent == 'more'):
+                            print('\nJust one second...\n')
+                            time.sleep(0.55)
+                        else:
+                            print('\nLikely invalid entry. Try again.')
+                    print('\nInteraction Pairs:')
+                    for counter, key in enumerate(d2):
+                        print('{0}: {1}'.format(counter,key))
+                        pairArray.append(key)
+                    pairs = raw_input('\nEnter the numbers corresponding to interaction pairs you desire.\nInvalid entries will be ignored.\n')
+                    if not pairs:
+                        print('\nEnter a value.\n')
                         time.sleep(0.75)
-                        flag = 1
-                        singleMols = pairArray[pair].split("_")
-                        energy1 = d.get(singleMols[0].lower())
-                        energy2 = d.get(singleMols[1].lower())
-                        interE = d3.get(pairArray[pair])
-                        for j, step in enumerate(interE[0]):
-                            bindingEnergy = Decimal('2625.5')*(step - (energy1[0] + energy2[0]))
-                            print('config {0}, {1} kJ/mol\n'.format(interE[1][j].replace("/",""), bindingEnergy))
-                if (flag == 1):
-                    repeat = 's'
-                    while (repeat != 'y' and repeat != 'n'):
-                        if (repeat != 's'):
-                            print('\nInvalid entry. Try again.\n')
-                        repeat = raw_input('\nAdditional data needed? (y/n)\n')
-                        if not repeat:
-                            print('\nEnter a value\n')
-                            repeat = 's'
-                        if (repeat == 'y'):
-                            agent = 'more'
-                        elif (repeat == 'n'):
-                            agent = 'owl'
-
+                    pairList = np.unique(np.array([int(s) for s in pairs.split() if s.isdigit()]))
+                    for pair in pairList:
+                        if (pair <= counter):
+                            print('\n{0}'.format(pairArray[pair]))
+                            time.sleep(0.75)
+                            flag = 1
+                            singleMols = pairArray[pair].split("_")
+                            energy1 = d.get(singleMols[0].lower())
+                            energy2 = d.get(singleMols[1].lower())
+                            interE = d3.get(pairArray[pair])
+                            for j, step in enumerate(interE[0]):
+                                bindingEnergy = Decimal('2625.5')*(step - (energy1[0] + energy2[0]))
+                                print('config {0}, {1} kJ/mol\n'.format(interE[1][j].replace("/",""), bindingEnergy))
+                    if (flag == 1):
+                        repeat = 's'
+                        while (repeat != 'y' and repeat != 'n'):
+                            if (repeat != 's'):
+                                print('\nInvalid entry. Try again.\n')
+                            repeat = raw_input('\nAdditional data needed? (y/n)\n')
+                            if not repeat:
+                                print('\nEnter a value\n')
+                                repeat = 's'
+                            if (repeat == 'y'):
+                                agent = 'more'
+                            elif (repeat == 'n'):
+                                agent = 'owl'
+        if (switchType == 1):
+            roll = 0
+            while (roll != 1):
+                tempControl = raw_input('\nDo you need to do additional operations? (y/n)\n')
+                if (tempControl == 'y'):
+                    print('\nJust one second.\n')
+                    time.sleep(0.5)
+                    roll = 1
+                    filter = 5
+                elif (tempControl == 'n'):
+                    switchType = 0
+                    roll = 1
+                else:
+                    print('\nPlease try again.\n')   
 else:
     print('\nYou are logged in to the wrong place. Log in to mpi.\n')
 
