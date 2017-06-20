@@ -139,7 +139,7 @@ if 'login0a.mpi.sam.pitt.edu' in host:
         while (filter != 1 and filter != 2 and filter != 3 and filter != 4):
             if (filter != 5):
                 print('\nLikely invalid entry. Try again.\n\n')
-            f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4\n\n')
+            f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4.\n')
             if not f1:
                 print('\nEnter a value\n')
                 filter = 5
@@ -240,6 +240,8 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                                 agent = 'more'
                             elif (repeat == 'n'):
                                 agent = 'owl'
+            elif (filter == 4):
+                    switchType = 0
         if (switchType == 1):
             roll = 0
             while (roll != 1):
