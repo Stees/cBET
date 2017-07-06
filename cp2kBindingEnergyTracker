@@ -9,25 +9,99 @@ from collections import defaultdict
 from decimal import *
 import numpy as np
 import time
+import operator
 
 #set decimal context
 getcontext().prec = 14
-
 getHost = subprocess.Popen('hostname', stdout=subprocess.PIPE)
 host = getHost.communicate()[0].split()[0]
+#determine filesystem
+FS = subprocess.Popen('pwd', stdout=subprocess.PIPE)
+fs = str(FS.communicate()[0].split())
 
-if 'login0a.mpi.sam.pitt.edu' in host:
-    trajectoryLocation = '/ihome/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
 
+if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
+    def calculationStatus ( oLocation, aJobs, Minimum, Index, localMinLocation, goodOpts ):
+        tempListEnergies = []
+        tempListConfigs = []
+        #ls the number directories for each interaction pair
+        nums = subprocess.Popen(r'ls -d */', stdout=subprocess.PIPE, cwd=outerLocation, shell=True)
+        numbers = nums.communicate()[0].split()
+        #find the mimimum and corresponding index for each calculation
+        if 'ls:' == numbers[0]:
+            return(Minimum,Index,localMinLocation,tempListEnergies,tempListconfigs,goodOpts)
+        for number in numbers:
+            innerLocation = oLocation + str(number)
+            files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
+            fileNames2 = files2.communicate()[0].split()
+            if "geometryOptimization.out" in fileNames2:
+                calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                calcFlag2 = calcSuccess2.communicate()[0]
+                if "OPTIMIZATION" in str(calcFlag2):
+                    getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                    v = Decimal(getEnergy.communicate()[0].split()[8])
+                    tempListEnergies.append(v)
+                    tempListConfigs.append(number)
+                    goodOpts = goodOpts + 1
+                    #trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
+                    if v < minimum:
+                        Minimum = v
+                        Index = number
+                        localMinLocation = innerLocation
+                    #move the calculation to zfs
+                    if 'zfs' not in innerLocation:
+                        try:
+                            subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
+                        except:
+                            print('Trouble moving {0} to zfs.\n'.format(innerLocation))
+                        #copyTrajectory = subprocess.Popen('cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                else:
+                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                    tempNumber = getNumber.communicate()[0].split()[0]
+                    #print('{0}'.format(tempNumber))
+                    if tempNumber not in aJobs:
+                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n'.format(innerLocation))
+                        print('Restarting...\n')
+                        #open the jobscript, replace the name of the input file with the name of the restart file
+                        jobfile = open(innerLocation+'job.slurm','r')
+                        modLines = jobfile.readlines()
+                        jobfile.close()
+                        newJobFile = open(innerLocation+'newJob.slurm','w')
+                        for line in modLines:
+                            if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
+                                newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
+                            else:
+                                newJobFile.write(line)
+                        newJobFile.close()
+                        changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
+                        #start the job
+                        subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
+                        startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                        jobNumber = startJob.communicate()[0].split()[3]
+                        print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
+                        #write the new job number
+                        subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
+            if number == numbers[-1]:
+                trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
+                configurationMoveLocation = finalConfigurationLocation + iStruct + 'OptimiumConfiguration.xyz'
+                try:
+                    copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=localMinLocation, shell=True)
+                    subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=innerLocation, shell=True)
+                    copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=localMinLocation, shell=True)
+                except:
+                    time.sleep(0)
+        return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
+
+
+    trajectoryLocation = '/zfs1/2/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
+    finalConfigurationLocation = '/zfs1/2/kjohnson/jpr54/cp2k/finalConfigurations/'
     #figure out what is in the queue
     currentJobs = subprocess.Popen("squeue -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
     activeJobs = currentJobs.communicate()[0].split()
-    #print('{0}'.format(activeJobs))
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules1 = sStructures.communicate()[0].split()
     d = defaultdict(list)
-
     #create array to hold energies of single molecules.
     #get the energies of all the single molecules, store them in the dictionary in position corresponding to name
     for counter, structure in enumerate(singleMolecules1):
@@ -43,7 +117,6 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                     scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
                     calcFlag = calcSuccess.communicate()[0]
                     scfFlag = scfSuccess.communicate()[0]
-
                 #make sure the success message is present in the file
                 if "OPTIMIZATION" in str(calcFlag):
                     getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
@@ -58,73 +131,42 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                         print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
+#**************************Part 2*****************************
     #get the names of the interaction configurations
     iStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/interactions/', shell=True)
-    interactions1 = iStructures.communicate()[0].split()
-
-
+    zStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/interactions', shell=True)
+    interactionsi = iStructures.communicate()[0].split()
+    interactionsz = zStructures.communicate()[0].split()
+    interactions = interactionsi + interactionsz
+    #make sure there are mirroring directories for everything on ihome on zfs
+    for pair in interactionsi:
+        if pair not in interactionsz:
+            subprocess.Popen('mkdir /zfs1/2/kjohnson/jpr54/cp2k/interactions/{0}'.format(pair), shell=True)
+    time.sleep(0.10)
     #make another dictionary for the interaction calculation energies
     d2 = defaultdict(list)
     d3 = defaultdict(list)
     #get the most negative energy for each interaction, and every energy for the interaction 
-    for iStruct in (interactions1):
-        if iStruct.lower() not in d2.keys():
+    for iStruct in (interactions):
+        if iStruct not in d2.keys():
             tempListAllEnergies = []
             tempListAllConfigs = []
+            appendEnergies = []
+            appendConfigs = []
+            minimum = 0
+            index = 0
+            optSuccess = 0
+            localMinimumLocation = ''
             k = iStruct
-            if iStruct in interactions1:
+            if iStruct in interactionsz:
+                outerLocation = '/zfs1/2/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
+                minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess )
+            if iStruct in interactionsi:
                 outerLocation = '/ihome/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
-                #ls the number directories for each interaction pair
-                nums = subprocess.Popen(r'ls -d */', stdout=subprocess.PIPE, cwd=outerLocation, shell=True)
-                numbers = nums.communicate()[0].split()
-                #find the mimimum for each calculation
-                minimum = 0
-                index = 0
-                for number in numbers:
-                    innerLocation = outerLocation + str(number)
-                    files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
-                    fileNames2 = files2.communicate()[0].split()
-                    if "geometryOptimization.out" in fileNames2:
-                        calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                        calcFlag2 = calcSuccess2.communicate()[0]
-                        if "OPTIMIZATION" in str(calcFlag2):
-                            getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                            v = Decimal(getEnergy.communicate()[0].split()[8])
-                            tempListAllEnergies.append(v)
-                            tempListAllConfigs.append(number)
-                            trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
-                            if v < minimum:
-                                minimum = v
-                                index = number
-                                copyTrajectory = subprocess.Popen('cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                        else:
-                            getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                            tempNumber = getNumber.communicate()[0].split()[0]
-                            #print('{0}'.format(tempNumber))
-
-                            if tempNumber not in activeJobs:
-                                print('\n\n\n*****Walltime likely exceeded*****\n{0}\n'.format(innerLocation))
-                                print('Restarting...\n')
-                                #open the jobscript, replace the name of the input file with the name of the restart file
-                                jobfile = open(innerLocation+'job.slurm','r')
-                                modLines = jobfile.readlines()
-                                jobfile.close()
-                                newJobFile = open(innerLocation+'newJob.slurm','w')
-                                for line in modLines:
-                                    if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
-                                        newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
-                                    else:
-                                        newJobFile.write(line)
-                                newJobFile.close()
-                                changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
-                                #start the job
-                                subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
-                                startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                                jobNumber = startJob.communicate()[0].split()[3]
-                                print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
-                                #remove old job number from directory, write the new one
-                                subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
-
+                minimum, index, localMinimumLocation, appendEnergies, appendConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess )
+                tempListAllEnergies = tempListAllEnergies + appendEnergies
+                tempListAllConfigs = tempListAllConfigs + appendConfigs
+                
             d2[k].append(minimum)
             d2[k].append(index)
             d3[k].append(tempListAllEnergies)
@@ -255,7 +297,10 @@ if 'login0a.mpi.sam.pitt.edu' in host:
                     switchType = 0
                     roll = 1
                 else:
-                    print('\nPlease try again.\n')   
+                    print('\nPlease try again.\n')  
+elif 'ihome' not in fs:
+    print('{0}'.format(fs))
+    print('\n\nYou need to cd to ihome.\n')
 else:
     print('\nYou are logged in to the wrong place. Log in to mpi.\n')
 
