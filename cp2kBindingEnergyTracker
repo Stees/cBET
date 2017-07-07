@@ -25,11 +25,11 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
         tempListEnergies = []
         tempListConfigs = []
         #ls the number directories for each interaction pair
-        nums = subprocess.Popen(r'ls -d */', stdout=subprocess.PIPE, cwd=outerLocation, shell=True)
+        nums = subprocess.Popen(r'ls -d */', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=oLocation, shell=True)
         numbers = nums.communicate()[0].split()
         #find the mimimum and corresponding index for each calculation
         if 'ls:' == numbers[0]:
-            return(Minimum,Index,localMinLocation,tempListEnergies,tempListconfigs,goodOpts)
+            return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
         for number in numbers:
             innerLocation = oLocation + str(number)
             files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
@@ -86,8 +86,10 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                 configurationMoveLocation = finalConfigurationLocation + iStruct + 'OptimiumConfiguration.xyz'
                 try:
                     copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=localMinLocation, shell=True)
-                    subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=innerLocation, shell=True)
+                    subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=localMinLocation, shell=True)
+                    time.sleep(1)
                     copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=localMinLocation, shell=True)
+                    print('{0}'.format(localMinLocation))
                 except:
                     time.sleep(0)
         return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
@@ -134,7 +136,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
 #**************************Part 2*****************************
     #get the names of the interaction configurations
     iStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/interactions/', shell=True)
-    zStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/interactions', shell=True)
+    zStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/interactions/', shell=True)
     interactionsi = iStructures.communicate()[0].split()
     interactionsz = zStructures.communicate()[0].split()
     interactions = interactionsi + interactionsz
