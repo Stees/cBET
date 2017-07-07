@@ -21,80 +21,88 @@ fs = str(FS.communicate()[0].split())
 
 
 if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
-    def calculationStatus ( oLocation, aJobs, Minimum, Index, localMinLocation, goodOpts ):
+    def moveBest( trajLoc, finalLoc, iS, lML ):
+        trajectoryMoveLocation = trajLoc+iS+'OptimumTrajectory.xyz'
+        configurationMoveLocation = finalLoc + iS + 'OptimiumConfiguration.xyz'
+        try:
+            copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=lML, shell=True)
+            subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=lML, shell=True)
+            time.sleep(1)
+            copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=lML, shell=True)
+            print('{0}'.format(lML))
+        except:
+            time.sleep(0)
+        return
+
+
+
+    def calculationStatus( oLocation, aJobs, Minimum, Index, localMinLocation, goodOpts ):
         tempListEnergies = []
         tempListConfigs = []
         #ls the number directories for each interaction pair
         nums = subprocess.Popen(r'ls -d */', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=oLocation, shell=True)
         numbers = nums.communicate()[0].split()
         #find the mimimum and corresponding index for each calculation
-        if 'ls:' == numbers[0]:
+        if 'ls:' != numbers[0]:
+            #return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
+            for number in numbers:
+                innerLocation = oLocation + str(number)
+                files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
+                fileNames2 = files2.communicate()[0].split()
+                if "geometryOptimization.out" in fileNames2:
+                    calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                    calcFlag2 = calcSuccess2.communicate()[0]
+                    if "OPTIMIZATION" in str(calcFlag2):
+                        getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                        v = Decimal(getEnergy.communicate()[0].split()[8])
+                        tempListEnergies.append(v)
+                        tempListConfigs.append(number)
+                        goodOpts = goodOpts + 1
+                        if v < Minimum:
+                            Minimum = v
+                            Index = number
+                            localMinLocation = innerLocation
+                        #move the calculation to zfs
+                        if 'zfs' not in innerLocation:
+                            try:
+                                subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
+                            except:
+                                print('Trouble moving {0} to zfs.\n'.format(innerLocation))
+                    else:
+                        getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                        tempNumber = getNumber.communicate()[0].split()[0]
+                        if tempNumber not in aJobs:
+                            print('\n\n\n*****Walltime likely exceeded*****\n{0}\n'.format(innerLocation))
+                            print('Restarting...\n')
+                            #open the jobscript, replace the name of the input file with the name of the restart file
+                            jobfile = open(innerLocation+'job.slurm','r')
+                            modLines = jobfile.readlines()
+                            jobfile.close()
+                            newJobFile = open(innerLocation+'newJob.slurm','w')
+                            for line in modLines:
+                                if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
+                                    newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
+                                else:
+                                    newJobFile.write(line)
+                            newJobFile.close()
+                            changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
+                            #start the job
+                            subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
+                            startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                            jobNumber = startJob.communicate()[0].split()[3]
+                            print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
+                            #write the new job number
+                            subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
+                if number == numbers[-1] and 'ihome' in oLocation:
+                    moveBest( trajectoryLocation, finalConfigurationLocation, iStruct, localMinLocation )
             return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
-        for number in numbers:
-            innerLocation = oLocation + str(number)
-            files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
-            fileNames2 = files2.communicate()[0].split()
-            if "geometryOptimization.out" in fileNames2:
-                calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                calcFlag2 = calcSuccess2.communicate()[0]
-                if "OPTIMIZATION" in str(calcFlag2):
-                    getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                    v = Decimal(getEnergy.communicate()[0].split()[8])
-                    tempListEnergies.append(v)
-                    tempListConfigs.append(number)
-                    goodOpts = goodOpts + 1
-                    #trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
-                    if v < minimum:
-                        Minimum = v
-                        Index = number
-                        localMinLocation = innerLocation
-                    #move the calculation to zfs
-                    if 'zfs' not in innerLocation:
-                        try:
-                            subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
-                        except:
-                            print('Trouble moving {0} to zfs.\n'.format(innerLocation))
-                        #copyTrajectory = subprocess.Popen('cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                else:
-                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                    tempNumber = getNumber.communicate()[0].split()[0]
-                    #print('{0}'.format(tempNumber))
-                    if tempNumber not in aJobs:
-                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n'.format(innerLocation))
-                        print('Restarting...\n')
-                        #open the jobscript, replace the name of the input file with the name of the restart file
-                        jobfile = open(innerLocation+'job.slurm','r')
-                        modLines = jobfile.readlines()
-                        jobfile.close()
-                        newJobFile = open(innerLocation+'newJob.slurm','w')
-                        for line in modLines:
-                            if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
-                                newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
-                            else:
-                                newJobFile.write(line)
-                        newJobFile.close()
-                        changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
-                        #start the job
-                        subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
-                        startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                        jobNumber = startJob.communicate()[0].split()[3]
-                        print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
-                        #write the new job number
-                        subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
-            if number == numbers[-1]:
-                trajectoryMoveLocation = trajectoryLocation+iStruct+'OptimumTrajectory.xyz'
-                configurationMoveLocation = finalConfigurationLocation + iStruct + 'OptimiumConfiguration.xyz'
-                try:
-                    copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=localMinLocation, shell=True)
-                    subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=localMinLocation, shell=True)
-                    time.sleep(1)
-                    copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=localMinLocation, shell=True)
-                    print('{0}'.format(localMinLocation))
-                except:
-                    time.sleep(0)
-        return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
+        elif 'ls:' == numbers[0]:
+            #call moveBest
+            if 'ihome' in oLocation:
+                moveBest( trajectoryLocation,finalConfigurationLocation,iStruct,localMinLocation )
+            return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
 
-
+#***************************part 1**********************************
     trajectoryLocation = '/zfs1/2/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
     finalConfigurationLocation = '/zfs1/2/kjohnson/jpr54/cp2k/finalConfigurations/'
     #figure out what is in the queue
@@ -103,34 +111,45 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules1 = sStructures.communicate()[0].split()
+    zStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/')
+    singleMolecules2 = zStructures.communicate()[0].split()
+    singleMolecules = singleMolecules1 + singleMolecules2
     d = defaultdict(list)
     #create array to hold energies of single molecules.
     #get the energies of all the single molecules, store them in the dictionary in position corresponding to name
-    for counter, structure in enumerate(singleMolecules1):
+    for counter, structure in enumerate(singleMolecules):
         if structure.lower() not in d.keys():
             k = structure.lower()
             if structure in singleMolecules1:
                 location = '/ihome/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
-                files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
-                fileNames = files.communicate()[0].split()
-                #next line will only show calculations that have started running
-                if "geometryOptimization.out" in fileNames:
-                    calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-                    scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-                    calcFlag = calcSuccess.communicate()[0]
-                    scfFlag = scfSuccess.communicate()[0]
-                #make sure the success message is present in the file
-                if "OPTIMIZATION" in str(calcFlag):
-                    getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
-                    v = Decimal(getEnergy.communicate()[0].split()[8])
-                    d[k].append(v)
-                elif "WARNING" in str(scfFlag):
-                    print('scf run did not converge in {0}\m'.format(location))
-                else:
-                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
-                    tempNumber = getNumber.communicate()[0]
-                    if tempNumber not in activeJobs:
-                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
+            elif structure in singleMolecules2:
+                location = '/zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
+            files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
+            fileNames = files.communicate()[0].split()
+            #next line will only show calculations that have started running
+            if "geometryOptimization.out" in fileNames:
+                calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
+                scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
+                calcFlag = calcSuccess.communicate()[0]
+                scfFlag = scfSuccess.communicate()[0]
+            #make sure the success message is present in the file
+            if "OPTIMIZATION" in str(calcFlag):
+                getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
+                v = Decimal(getEnergy.communicate()[0].split()[8])
+                d[k].append(v)
+                #does not need to be re-run, move it to zfs
+                if 'zfs' not in location:
+                    try:
+                        subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
+                    except:
+                        print('\nTrouble moving {0} to zfs.\n'.format(location))
+            elif "WARNING" in str(scfFlag):
+                print('scf run did not converge in {0}\m'.format(location))
+            else:
+                getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
+                tempNumber = getNumber.communicate()[0]
+                if tempNumber not in activeJobs:
+                    print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
 #**************************Part 2*****************************
@@ -171,11 +190,13 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                 
             d2[k].append(minimum)
             d2[k].append(index)
+            d2[k].append(optSuccess)
             d3[k].append(tempListAllEnergies)
             d3[k].append(tempListAllConfigs)
+            d3[k].append(optSuccess)
 
-#*******************Part 3: data output
-#calculate the interaction energies
+#*******************Part 3: data output***********************
+    #calculate the interaction energies
     #allow for selection of only specific analyte to print
     filter = 5
     switchType = 1
@@ -198,15 +219,19 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                     singleMols = key.split("_")
                     energy1 = d.get(singleMols[0].lower())
                     energy2 = d.get(singleMols[1].lower())
-                    interE = d2.get(key)
-                    print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-                    #2625.5 is conversion factor between hartree and kJ/mol
-                    bindingEnergy = Decimal(str(2625.5))*(interE[0] - (energy1[0] + energy2[0]))
-                    print('{0} kJ/mol'.format(bindingEnergy))
+                    try:
+                        interE = d2.get(key)
+                        print('\n{0:40}\tconfiguration {1} out of {2} converged'.format(key,interE[1].replace("/",""),interE[2]))
+                        #2625.5 is conversion factor between hartree and kJ/mol
+                        bindingEnergy = Decimal(str(2625.5))*(interE[0] - (energy1[0] + energy2[0]))
+                        print('{0} kJ/mol'.format(bindingEnergy))
+                    except:
+                        print('\nNo data for {0} yet.\n'.format(singleMols))
             elif (filter == 2):
                 agent = 'apple'
                 flag = 0
                 while (agent != 'owl'):
+                    dataList = []
                     if (agent != 'apple'):
                         if (agent == 'more'):
                             print('\nJust one second...\n')
@@ -220,11 +245,20 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                             singleMols = key.split("_")
                             energy1 = d.get(singleMols[0].lower())
                             energy2 = d.get(singleMols[1].lower())
-                            interE = d2.get(key)
-                            print('\n{0}, configuration {1}'.format(singleMols,interE[1].replace("/","")))
-                            #2625.5 is conversion factor between hartree and kJ/mol
-                            bindingEnergy = Decimal('2625.5')*(interE[0] - (energy1[0] + energy2[0]))
+                            try:
+                                interE = d2.get(key)
+                                #2625.5 is conversion factor between hartree and kJ/mol
+                                bindingEnergy = Decimal('2625.5')*(interE[0] - (energy1[0] + energy2[0]))
+                                tempList = [key, bindingEnergy, interE[1].replace("/",""), interE[2]]
+                                dataList.append(tempList)
+                            except:
+                                print('\nNo data for {0} yet.'.format(singleMols))
                             print('{0} kJ/mol'.format(bindingEnergy))
+                    #sort dataList and print it
+                    dataListFinal = sorted(dataList, key=operator.itemgetter(1))
+                    for row in range(0,len(dataListFinal)):
+                        print('\n{0:40}\tconfiguration {1} out of {2} converged.'.format(dataListFinal[row][0],dataListFinal[row][2],dataListFinal[row][3]))
+                        print('{0} kJ/mol'.format(dataListFinal[row][1]))
                     if (flag == 1):
                         repeat = 's'
                         while (repeat != 'y' and repeat != 'n'):
@@ -243,26 +277,30 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                 agent = 'apple'
                 flag = 0
                 while (agent != 'owl'):
+                    dataList = []
+                    pairArrayPre = []
                     pairArray = []
                     if (agent != 'apple'):
                         if (agent == 'more'):
                             print('\nJust one second...\n')
-                            time.sleep(0.55)
+                            time.sleep(0.50)
                         else:
                             print('\nLikely invalid entry. Try again.')
                     print('\nInteraction Pairs:')
-                    for counter, key in enumerate(d2):
-                        print('{0}: {1}'.format(counter,key))
-                        pairArray.append(key)
-                    pairs = raw_input('\nEnter the numbers corresponding to interaction pairs you desire.\nInvalid entries will be ignored.\n')
+                    for key in d2:
+                        #print('{0}: {1}'.format(counter,key))
+                        pairArrayPre.append(key)
+                    for counter, mols in enumerate(pairArray):
+                        print('{0}: {1}'.format(counter,mols))
+                    pairs = raw_input('\nEnter the numbers corresponding to interaction pairs for which you need data.\nInvalid entries will be ignored, and calculations without results yet will print the pair name with no energies.\n')
                     if not pairs:
                         print('\nEnter a value.\n')
-                        time.sleep(0.75)
+                        time.sleep(0.10)
                     pairList = np.unique(np.array([int(s) for s in pairs.split() if s.isdigit()]))
                     for pair in pairList:
                         if (pair <= counter):
                             print('\n{0}'.format(pairArray[pair]))
-                            time.sleep(0.75)
+                            time.sleep(0.10)
                             flag = 1
                             singleMols = pairArray[pair].split("_")
                             energy1 = d.get(singleMols[0].lower())
@@ -270,7 +308,12 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                             interE = d3.get(pairArray[pair])
                             for j, step in enumerate(interE[0]):
                                 bindingEnergy = Decimal('2625.5')*(step - (energy1[0] + energy2[0]))
-                                print('config {0}, {1} kJ/mol\n'.format(interE[1][j].replace("/",""), bindingEnergy))
+                                tempList = [interE[1][j].replace("/",""), bindingEnergy]
+                                dataList.append(tempList)
+                    dataListFinal = sorted(dataList, key=operator.itemgetter(1))
+                    for row in range(0,len(dataListFinal)):
+                        print('configuration {0}:\t{1} kJ/mol\n'.format(dataListFinal[row][0],dataListFinal[row][1]))
+                    print('{0} total converged configurations.\n'.format(interE[2]))
                     if (flag == 1):
                         repeat = 's'
                         while (repeat != 'y' and repeat != 'n'):
