@@ -29,7 +29,6 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
             subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=lML, shell=True)
             time.sleep(1)
             copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=lML, shell=True)
-            print('{0}'.format(lML))
         except:
             time.sleep(0)
         return
@@ -253,7 +252,6 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                                 dataList.append(tempList)
                             except:
                                 print('\nNo data for {0} yet.'.format(singleMols))
-                            print('{0} kJ/mol'.format(bindingEnergy))
                     #sort dataList and print it
                     dataListFinal = sorted(dataList, key=operator.itemgetter(1))
                     for row in range(0,len(dataListFinal)):
@@ -290,6 +288,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                     for key in d2:
                         #print('{0}: {1}'.format(counter,key))
                         pairArrayPre.append(key)
+                    pairArray = sorted(pairArrayPre, key=str.lower)
                     for counter, mols in enumerate(pairArray):
                         print('{0}: {1}'.format(counter,mols))
                     pairs = raw_input('\nEnter the numbers corresponding to interaction pairs for which you need data.\nInvalid entries will be ignored, and calculations without results yet will print the pair name with no energies.\n')
