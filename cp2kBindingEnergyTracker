@@ -132,23 +132,23 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                 calcFlag = calcSuccess.communicate()[0]
                 scfFlag = scfSuccess.communicate()[0]
             #make sure the success message is present in the file
-            if "OPTIMIZATION" in str(calcFlag):
-                getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
-                v = Decimal(getEnergy.communicate()[0].split()[8])
-                d[k].append(v)
-                #does not need to be re-run, move it to zfs
-                if 'zfs' not in location:
-                    try:
-                        subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
-                    except:
-                        print('\nTrouble moving {0} to zfs.\n'.format(location))
-            elif "WARNING" in str(scfFlag):
-                print('scf run did not converge in {0}\m'.format(location))
-            else:
-                getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
-                tempNumber = getNumber.communicate()[0]
-                if tempNumber not in activeJobs:
-                    print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
+                if "OPTIMIZATION" in str(calcFlag):
+                    getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
+                    v = Decimal(getEnergy.communicate()[0].split()[8])
+                    d[k].append(v)
+                    #does not need to be re-run, move it to zfs
+                    if 'zfs' not in location:
+                        try:
+                            subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
+                        except:
+                            print('\nTrouble moving {0} to zfs.\n'.format(location))
+                elif "WARNING" in str(scfFlag):
+                    print('scf run did not converge in {0}\m'.format(location))
+                else:
+                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
+                    tempNumber = getNumber.communicate()[0]
+                    if tempNumber not in activeJobs:
+                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
 #**************************Part 2*****************************
