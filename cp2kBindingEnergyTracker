@@ -28,7 +28,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
             copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=lML, shell=True)
             subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=lML, shell=True)
             time.sleep(1)
-            copyConfiguration = subprocess.Popen('cp -r finalPositions* {0}'.format(configurationMoveLocation), cwd=lML, shell=True)
+            copyConfiguration = subprocess.Popen('cp -f finalPositions* {0}'.format(configurationMoveLocation), cwd=lML, shell=True)
         except:
             time.sleep(0)
         return
