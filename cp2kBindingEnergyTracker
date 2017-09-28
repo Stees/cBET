@@ -139,6 +139,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                     #does not need to be re-run, move it to zfs
                     if 'zfs' not in location:
                         try:
+                            subprocess.Popen('bash -c "createFinalPositionsCP2K"', cwd=location, shell=True)
                             subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
                         except:
                             print('\nTrouble moving {0} to zfs.\n'.format(location))
