@@ -20,7 +20,7 @@ FS = subprocess.Popen('pwd', stdout=subprocess.PIPE)
 fs = str(FS.communicate()[0].split())
 
 
-if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
+if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     def moveBest( trajLoc, finalLoc, iS, lML ):
         trajectoryMoveLocation = trajLoc+iS+'OptimumTrajectory.xyz'
         configurationMoveLocation = finalLoc + iS + 'OptimiumConfiguration.xyz'
@@ -62,9 +62,9 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                             Index = number
                             localMinLocation = innerLocation
                         #move the calculation to zfs
-                        if 'zfs' not in innerLocation:
+                        if 'zfs1' not in innerLocation:
                             try:
-                                subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
+                                subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
                             except:
                                 print('Trouble moving {0} to zfs.\n'.format(innerLocation))
                     else:
@@ -102,15 +102,15 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
             return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
 
 #***************************part 1**********************************
-    trajectoryLocation = '/zfs1/2/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
-    finalConfigurationLocation = '/zfs1/2/kjohnson/jpr54/cp2k/finalConfigurations/'
+    trajectoryLocation = '/zfs1/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
+    finalConfigurationLocation = '/zfs1/kjohnson/jpr54/cp2k/finalConfigurations/'
     #figure out what is in the queue
     currentJobs = subprocess.Popen("squeue -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
     activeJobs = currentJobs.communicate()[0].split()
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules1 = sStructures.communicate()[0].split()
-    zStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/')
+    zStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/zfs1/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules2 = zStructures.communicate()[0].split()
     singleMolecules = singleMolecules1 + singleMolecules2
     d = defaultdict(list)
@@ -122,7 +122,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
             if structure in singleMolecules1:
                 location = '/ihome/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
             elif structure in singleMolecules2:
-                location = '/zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
+                location = '/zfs1/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
             files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
             fileNames = files.communicate()[0].split()
             #next line will only show calculations that have started running
@@ -137,10 +137,10 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
                     v = Decimal(getEnergy.communicate()[0].split()[8])
                     d[k].append(v)
                     #does not need to be re-run, move it to zfs
-                    if 'zfs' not in location:
+                    if 'zfs1' not in location:
                         try:
                             subprocess.Popen('bash -c "createFinalPositionsCP2K"', cwd=location, shell=True)
-                            subprocess.Popen('bash -c "mv {0} /zfs1/2/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
+                            subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
                         except:
                             print('\nTrouble moving {0} to zfs.\n'.format(location))
                 elif "WARNING" in str(scfFlag):
@@ -155,14 +155,14 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
 #**************************Part 2*****************************
     #get the names of the interaction configurations
     iStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/interactions/', shell=True)
-    zStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/zfs1/2/kjohnson/jpr54/cp2k/interactions/', shell=True)
+    zStructures = subprocess.Popen(r'ls *_* -d', stdout=subprocess.PIPE, cwd='/zfs1/kjohnson/jpr54/cp2k/interactions/', shell=True)
     interactionsi = iStructures.communicate()[0].split()
     interactionsz = zStructures.communicate()[0].split()
     interactions = interactionsi + interactionsz
     #make sure there are mirroring directories for everything on ihome on zfs
     for pair in interactionsi:
         if pair not in interactionsz:
-            subprocess.Popen('mkdir /zfs1/2/kjohnson/jpr54/cp2k/interactions/{0}'.format(pair), shell=True)
+            subprocess.Popen('mkdir /zfs1/kjohnson/jpr54/cp2k/interactions/{0}'.format(pair), shell=True)
     time.sleep(0.10)
     #make another dictionary for the interaction calculation energies
     d2 = defaultdict(list)
@@ -180,7 +180,7 @@ if 'login0a.mpi.sam.pitt.edu' in host and 'ihome' in fs:
             localMinimumLocation = ''
             k = iStruct
             if iStruct in interactionsz:
-                outerLocation = '/zfs1/2/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
+                outerLocation = '/zfs1/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
                 minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess )
             if iStruct in interactionsi:
                 outerLocation = '/ihome/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
@@ -347,5 +347,5 @@ elif 'ihome' not in fs:
     print('{0}'.format(fs))
     print('\n\nYou need to cd to ihome.\n')
 else:
-    print('\nYou are logged in to the wrong place. Log in to mpi.\n')
+    print('\nYou are logged in to the wrong place. Log in to opa.\n')
 
