@@ -34,8 +34,7 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
         return
 
 
-
-    def calculationStatus( oLocation, aJobs, Minimum, Index, localMinLocation, goodOpts ):
+    def calculationStatus( oLocation, aJobs, Minimum, Index, localMinLocation, goodOpts, specie ):
         tempListEnergies = []
         tempListConfigs = []
         #ls the number directories for each interaction pair
@@ -61,10 +60,13 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             Minimum = v
                             Index = number
                             localMinLocation = innerLocation
-                        #move the calculation to zfs
+                        #move the calculation to zfs. This needs to discriminate between interactions and single molecules
                         if 'zfs1' not in innerLocation:
                             try:
-                                subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, iStruct), shell=True)
+                                if 'interactions' in oLocation:
+                                    subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/interactions/{1}/"'.format(innerLocation, specie), shell=True)
+                                elif 'single' in oLocation:
+                                    subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/singleMolecules/{1}/"'.format(innerLocation, specie), shell=True)
                             except:
                                 print('Trouble moving {0} to zfs.\n'.format(innerLocation))
                     else:
@@ -80,7 +82,7 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             newJobFile = open(innerLocation+'newJob.slurm','w')
                             for line in modLines:
                                 if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization" in line:
-                                    newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(iStruct+'_'+number.split('/',1)[0]))
+                                    newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n'.format(specie+'_'+number.split('/',1)[0]))
                                 else:
                                     newJobFile.write(line)
                             newJobFile.close()
@@ -89,24 +91,31 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
                             startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                             jobNumber = startJob.communicate()[0].split()[3]
-                            print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
+                            print('{0} {1}'.format(jobNumber,specie+'_'+number))
                             #write the new job number
                             subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
                 if number == numbers[-1] and 'ihome' in oLocation:
-                    moveBest( trajectoryLocation, finalConfigurationLocation, iStruct, localMinLocation )
+                    moveBest( trajectoryLocation, finalConfigurationLocation, specie, localMinLocation )
             return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
         elif 'ls:' == numbers[0]:
             #call moveBest
             if 'ihome' in oLocation:
-                moveBest( trajectoryLocation,finalConfigurationLocation,iStruct,localMinLocation )
+                moveBest( trajectoryLocation,finalConfigurationLocation,specie,localMinLocation )
             return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
 
 #***************************part 1**********************************
     trajectoryLocation = '/zfs1/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
     finalConfigurationLocation = '/zfs1/kjohnson/jpr54/cp2k/finalConfigurations/'
-    #figure out what is in the queue
-    currentJobs = subprocess.Popen("squeue -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
-    activeJobs = currentJobs.communicate()[0].split()
+    #figure out what is in the queue for BOTH queues and combine
+    currentJobs1 = subprocess.Popen("squeue -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
+    currentJobs2 = subprocess.Popen("squeue -M mpi -u $USER -o '%7i%24j%8u' | grep 'jpr54' | awk '{print $1;}'", stdout=subprocess.PIPE, shell=True)
+    activeJobs1 = currentJobs1.communicate()[0].split()
+    activeJobs2 = currentJobs2.communicate()[0].split()
+    activeJobs = activeJobs1 + activeJobs2
+
+
+
+    
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
     singleMolecules1 = sStructures.communicate()[0].split()
@@ -114,42 +123,63 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     singleMolecules2 = zStructures.communicate()[0].split()
     singleMolecules = singleMolecules1 + singleMolecules2
     d = defaultdict(list)
+    d3 = defaultdict(list)
     #create array to hold energies of single molecules.
-    #get the energies of all the single molecules, store them in the dictionary in position corresponding to name
-    for counter, structure in enumerate(singleMolecules):
+    #get the MINIMUM energies of all the single molecules, store them in the dictionary in position corresponding to name
+    for structure in singleMolecules:
         if structure.lower() not in d.keys():
             k = structure.lower()
+            tempListAllEnergies = []
+            tempListAllConfigs = []
+            appendEnergies = []
+            appendConfigs = []
+            minimum = 0
+            index = 0
+            optSuccess = 0
+            localMinimumLocation = ''
             if structure in singleMolecules1:
-                location = '/ihome/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
-            elif structure in singleMolecules2:
-                location = '/zfs1/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
-            files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
-            fileNames = files.communicate()[0].split()
-            #next line will only show calculations that have started running
-            if "geometryOptimization.out" in fileNames:
-                calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-                scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-                calcFlag = calcSuccess.communicate()[0]
-                scfFlag = scfSuccess.communicate()[0]
-            #make sure the success message is present in the file
-                if "OPTIMIZATION" in str(calcFlag):
-                    getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
-                    v = Decimal(getEnergy.communicate()[0].split()[8])
-                    d[k].append(v)
-                    #does not need to be re-run, move it to zfs
-                    if 'zfs1' not in location:
-                        try:
-                            subprocess.Popen('bash -c "createFinalPositionsCP2K"', cwd=location, shell=True)
-                            subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
-                        except:
-                            print('\nTrouble moving {0} to zfs.\n'.format(location))
-                elif "WARNING" in str(scfFlag):
-                    print('scf run did not converge in {0}\m'.format(location))
-                else:
-                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
-                    tempNumber = getNumber.communicate()[0]
-                    if tempNumber not in activeJobs:
-                        print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
+                outerLocation = '/ihome/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
+                minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess, structure )
+            if structure in singleMolecules2:
+                outerLocation = '/zfs1/kjohnson/jpr54/cp2k/singleMolecules/' + structure + '/'
+                minimum, index, localMinimumLocation, appendEnergies, appendConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess, structure )
+                tempListAllEnergies = tempListAllEnergies + appendEnergies
+                tempListAllConfigs = tempListAllConfigs + appendConfigs
+            d[k].append(minimum)
+            d[k].append(index)
+            d[k].append(optSuccess)
+            d3[k].append(tempListAllEnergies)
+            d3[k].append(tempListAllConfigs)
+            d3[k].append(optSuccess)
+
+                
+            # files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
+            # fileNames = files.communicate()[0].split()
+            # #next line will only show calculations that have started running
+            # if "geometryOptimization.out" in fileNames:
+            #     calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
+            #     scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
+            #     calcFlag = calcSuccess.communicate()[0]
+            #     scfFlag = scfSuccess.communicate()[0]
+            # #make sure the success message is present in the file
+            #     if "OPTIMIZATION" in str(calcFlag):
+            #         getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
+            #         v = Decimal(getEnergy.communicate()[0].split()[8])
+            #         d[k].append(v)
+            #         #does not need to be re-run, move it to zfs
+            #         if 'zfs1' not in location:
+            #             try:
+            #                 subprocess.Popen('bash -c "createFinalPositionsCP2K"', cwd=location, shell=True)
+            #                 subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
+            #             except:
+            #                 print('\nTrouble moving {0} to zfs.\n'.format(location))
+            #     elif "WARNING" in str(scfFlag):
+            #         print('scf run did not converge in {0}\m'.format(location))
+            #     else:
+            #         getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
+            #         tempNumber = getNumber.communicate()[0]
+            #         if tempNumber not in activeJobs:
+            #             print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
 #**************************Part 2*****************************
@@ -166,7 +196,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     time.sleep(0.10)
     #make another dictionary for the interaction calculation energies
     d2 = defaultdict(list)
-    d3 = defaultdict(list)
     #get the most negative energy for each interaction, and every energy for the interaction 
     for iStruct in (interactions):
         if iStruct not in d2.keys():
@@ -181,10 +210,10 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
             k = iStruct
             if iStruct in interactionsz:
                 outerLocation = '/zfs1/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
-                minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess )
+                minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess, iStruct )
             if iStruct in interactionsi:
                 outerLocation = '/ihome/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
-                minimum, index, localMinimumLocation, appendEnergies, appendConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess )
+                minimum, index, localMinimumLocation, appendEnergies, appendConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess, iStruct )
                 tempListAllEnergies = tempListAllEnergies + appendEnergies
                 tempListAllConfigs = tempListAllConfigs + appendConfigs
                 
@@ -198,16 +227,16 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
 #*******************Part 3: data output***********************
     #calculate the interaction energies
     #allow for selection of only specific analyte to print
-    filter = 5
+    filter = 6
     switchType = 1
     while (switchType != 0):
-        while (filter != 1 and filter != 2 and filter != 3 and filter != 4):
-            if (filter != 5):
+        while (filter != 1 and filter != 2 and filter != 3 and filter != 4 and filter != 5):
+            if (filter != 6):
                 print('\nLikely invalid entry. Try again.\n\n')
-            f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo exit, type 4.\n')
+            f1 = raw_input('\n\nTo print energies for all pairs, type 1.\nTo filter data, type 2.\nTo print all interaction energies for a single pair, type 3.\nTo print all energies for single molecules, type 4.\nTo exit, type 5.\n')
             if not f1:
                 print('\nEnter a value\n')
-                filter = 5
+                filter = 6
             else:
                 try:
                     filter = int(f1)
@@ -328,6 +357,59 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             elif (repeat == 'n'):
                                 agent = 'owl'
             elif (filter == 4):
+                #print all binding energies for a specified molecule
+                agent = 'apple'
+                flag = 0
+                while (agent != 'owl'):
+                    dataList = []
+                    arrayPre = []
+                    array = []
+                    if (agent != 'apple'):
+                        if (agent == 'more'):
+                            print('\nJust one second...\n')
+                            time.sleep(0.50)
+                        else:
+                            print('\nLikely invalid entry. Try again.')
+                    print('\nOptimized Energies:')
+                    for key in d:
+                        arrayPre.append(key)
+                    array = sorted(arrayPre, key=str.lower)
+                    for counter, entry in enumerate(array):
+                        print('{0}: {1}'.format(counter,entry))
+                    molecules = raw_input('\nEnter the numbers corresponding to molecules for which you need data.\nInvalid entries will be ignored, and calculations without results yet will print the pair name with no energies.\n')
+                    if not molecules:
+                        print('\nEnter a value.\n')
+                        time.sleep(0.10)
+                    moleculeList = np.unique(np.array([int(s) for s in molecules.split() if s.isdigit()]))
+                    for molecule in moleculeList:
+                        if (molecule <= counter):
+                            print('\n{0}'.format(array[molecule]))
+                            time.sleep(0.10)
+                            flag = 1
+                            # singleMols = array[molecule]
+                            interE = d3.get(array[molecule])
+                            for j, step in enumerate(interE[0]):
+                                energy = Decimal('2625.5')*step
+                                tempList = [interE[1][j].replace("/",""), energy]
+                                dataList.append(tempList)
+                    dataListFinal = sorted(dataList, key=operator.itemgetter(1))
+                    for row in range(0,len(dataListFinal)):
+                        print('configuration {0}:\t{1} kJ/mol\n'.format(dataListFinal[row][0],dataListFinal[row][1]))
+                    print('{0} total converged configurations.\n'.format(interE[2]))
+                    if (flag == 1):
+                        repeat = 's'
+                        while (repeat != 'y' and repeat != 'n'):
+                            if (repeat != 's'):
+                                print('\nInvalid entry. Try again.\n')
+                            repeat = raw_input('\nAdditional data needed? (y/n)\n')
+                            if not repeat:
+                                print('\nEnter a value\n')
+                                repeat = 's'
+                            if (repeat == 'y'):
+                                agent = 'more'
+                            elif (repeat == 'n'):
+                                agent = 'owl'
+            elif (filter == 5):
                     switchType = 0
         if (switchType == 1):
             roll = 0
