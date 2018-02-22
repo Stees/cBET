@@ -42,7 +42,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
         numbers = nums.communicate()[0].split()
         #find the mimimum and corresponding index for each calculation
         if 'ls:' != numbers[0]:
-            #return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
             for number in numbers:
                 innerLocation = oLocation + str(number)
                 files2 = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=innerLocation)
@@ -113,8 +112,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     activeJobs2 = currentJobs2.communicate()[0].split()
     activeJobs = activeJobs1 + activeJobs2
 
-
-
     
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
@@ -124,8 +121,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     singleMolecules = singleMolecules1 + singleMolecules2
     d = defaultdict(list)
     d3 = defaultdict(list)
-    #create array to hold energies of single molecules.
-    #get the MINIMUM energies of all the single molecules, store them in the dictionary in position corresponding to name
     for structure in singleMolecules:
         if structure.lower() not in d.keys():
             k = structure.lower()
@@ -151,35 +146,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
             d3[k].append(tempListAllEnergies)
             d3[k].append(tempListAllConfigs)
             d3[k].append(optSuccess)
-
-                
-            # files = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd=location)
-            # fileNames = files.communicate()[0].split()
-            # #next line will only show calculations that have started running
-            # if "geometryOptimization.out" in fileNames:
-            #     calcSuccess = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-            #     scfSuccess = subprocess.Popen('grep "WARNING in qs_scf.F" geometryOptimization.out', stdout=subprocess.PIPE, cwd=location, shell=True)
-            #     calcFlag = calcSuccess.communicate()[0]
-            #     scfFlag = scfSuccess.communicate()[0]
-            # #make sure the success message is present in the file
-            #     if "OPTIMIZATION" in str(calcFlag):
-            #         getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=location, shell=True)
-            #         v = Decimal(getEnergy.communicate()[0].split()[8])
-            #         d[k].append(v)
-            #         #does not need to be re-run, move it to zfs
-            #         if 'zfs1' not in location:
-            #             try:
-            #                 subprocess.Popen('bash -c "createFinalPositionsCP2K"', cwd=location, shell=True)
-            #                 subprocess.Popen('bash -c "mv {0} /zfs1/kjohnson/jpr54/cp2k/singleMolecules/"'.format(location.rsplit('/',1)[0]), shell=True)
-            #             except:
-            #                 print('\nTrouble moving {0} to zfs.\n'.format(location))
-            #     elif "WARNING" in str(scfFlag):
-            #         print('scf run did not converge in {0}\m'.format(location))
-            #     else:
-            #         getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=location, shell=True)
-            #         tempNumber = getNumber.communicate()[0]
-            #         if tempNumber not in activeJobs:
-            #             print('\n\n\n*****Walltime likely exceeded*****\n{0}\n\n\n'.format(location))
 
 
 #**************************Part 2*****************************
@@ -301,7 +267,7 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             elif (repeat == 'n'):
                                 agent = 'owl'
             elif (filter == 3):
-                #print all binding energies for a specified molecule
+                #print all binding energies for a specified molecule pair
                 agent = 'apple'
                 flag = 0
                 while (agent != 'owl'):
@@ -316,7 +282,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             print('\nLikely invalid entry. Try again.')
                     print('\nInteraction Pairs:')
                     for key in d2:
-                        #print('{0}: {1}'.format(counter,key))
                         pairArrayPre.append(key)
                     pairArray = sorted(pairArrayPre, key=str.lower)
                     for counter, mols in enumerate(pairArray):
