@@ -11,6 +11,7 @@ import numpy as np
 import time
 import operator
 
+
 #set decimal context
 getcontext().prec = 14
 getHost = subprocess.Popen('hostname', stdout=subprocess.PIPE)
@@ -25,12 +26,14 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
         trajectoryMoveLocation = trajLoc+iS+'OptimumTrajectory.xyz'
         configurationMoveLocation = finalLoc + iS + 'OptimiumConfiguration.xyz'
         try:
-            copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), stdout=subprocess.PIPE, cwd=lML, shell=True)
-            subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=lML, shell=True)
+            copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), cwd=lML, shell=True)
+            subprocess.Popen('createFinalPositionsCP2K', stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=lML, shell=True)
+            #print('{0}\n'.format(lML))
             time.sleep(1)
             copyConfiguration = subprocess.Popen('cp -f finalPositions* {0}'.format(configurationMoveLocation), cwd=lML, shell=True)
         except:
-            time.sleep(0)
+            #print('\nUnable to make finalPositions file at {0}\n'.format(lML))
+            pass
         return
 
 
@@ -50,6 +53,8 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                     calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                     calcFlag2 = calcSuccess2.communicate()[0]
                     if "OPTIMIZATION" in str(calcFlag2):
+                        if "finalPositions"+specie+'_'+number+'.xyz' not in fileNames2:
+                            subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=innerLocation, shell=True)
                         getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                         v = Decimal(getEnergy.communicate()[0].split()[8])
                         tempListEnergies.append(v)
