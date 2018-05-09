@@ -389,7 +389,7 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                     print('\nJust one second.\n')
                     time.sleep(0.5)
                     roll = 1
-                    filter = 5
+                    filter = 6
                 elif (tempControl == 'n'):
                     switchType = 0
                     roll = 1
