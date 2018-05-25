@@ -24,7 +24,7 @@ fs = str(FS.communicate()[0].split())
 if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     def moveBest( trajLoc, finalLoc, iS, lML ):
         trajectoryMoveLocation = trajLoc+iS+'OptimumTrajectory.xyz'
-        configurationMoveLocation = finalLoc + iS + 'OptimiumConfiguration.xyz'
+        configurationMoveLocation = finalLoc + iS + 'OptimumConfiguration.xyz'
         try:
             copyTrajectory = subprocess.Popen(r'cp -f *-pos-1.xyz {0}'.format(trajectoryMoveLocation), cwd=lML, shell=True)
             subprocess.Popen('createFinalPositionsCP2K', stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=lML, shell=True)
