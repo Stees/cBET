@@ -98,40 +98,11 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                             print('{0} {1}'.format(jobNumber,specie+'_'+number))
                             #write the new job number
                             subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
-                elif "geometryOptimization.out" not in fileNames2:
-                    getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                    tempNumber = getNumber.communicate()[0].split()[0]
-                    if tempNumber not in aJobs:
-                        print('\n\n\n*****File copy error*****\n{0}\n'.format(innerLocation))
-                        print('Restarting...\n')
-                        #open the jobscript, replace the name of the input file with the name of the restart file
-                        jobfile = open(innerLocation+'job.slurm','r')
-                        modLines = jobfile.readlines()
-                        jobfile.close()
-                        newJobFile = open(innerLocation+'newJob.slurm','w')
-                        for line in modLines:
-                            if "mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i " in line:
-                                newJobFile.write('sleep 5\n')
-                                newJobFile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i geometryOptimization.inp -o geometryOptimization.out\n')
-                            else:
-                                newJobFile.write(line)
-                        newJobFile.close()
-                        changeName = subprocess.Popen('mv newJob.slurm job.slurm', cwd=innerLocation, shell=True)
-                        #start the job
-                        subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
-                        startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
-                        jobNumber = startJob.communicate()[0].split()[3]
-                        print('{0} {1}'.format(jobNumber,iStruct+'_'+number))
-                        #write the new job number
-                        subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
-                if number == numbers[-1] and 'ihome' in oLocation:
+                if number == numbers[-1]:
                     moveBest( trajectoryLocation, finalConfigurationLocation, specie, localMinLocation )
             return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
         elif 'ls:' == numbers[0]:
-            #call moveBest
-            if 'ihome' in oLocation:
-                moveBest( trajectoryLocation,finalConfigurationLocation,specie,localMinLocation )
-            return(Minimum,Index,localMinLocation,tempListEnergies,tempListConfigs,goodOpts)
+            print('Likely that an error occured with {0}, as there is no number in the directory\n'.format(oLocation))
 
 #***************************part 1**********************************
     trajectoryLocation = '/zfs1/kjohnson/jpr54/cp2k/bestInteractionTrajectories/'
@@ -142,7 +113,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     activeJobs1 = currentJobs1.communicate()[0].split()
     activeJobs2 = currentJobs2.communicate()[0].split()
     activeJobs = activeJobs1 + activeJobs2
-
     
     #identify all the energies of the single molecules
     sStructures = subprocess.Popen('ls', stdout=subprocess.PIPE, cwd='/ihome/kjohnson/jpr54/cp2k/singleMolecules/')
@@ -152,7 +122,6 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
     singleMolecules = singleMolecules1 + singleMolecules2
     d = defaultdict(list)
     d3 = defaultdict(list)
-    
     for structure in singleMolecules:
         if structure.lower() not in d.keys():
             k = structure.lower()
