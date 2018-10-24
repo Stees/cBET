@@ -52,7 +52,53 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
                 if "geometryOptimization.out" in fileNames2 and any("restart" in entry for entry in fileNames2):
                     calcSuccess2 = subprocess.Popen('grep "GEOMETRY OPTIMIZATION COMPLETED" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
                     calcFlag2 = calcSuccess2.communicate()[0]
-                    if "OPTIMIZATION" in str(calcFlag2):
+                    warningFlagCapture = subprocess.Popen('grep "WARNING in qs" geometryOptimization.out', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                    warningFlag = warningFlagCapture.communicate()
+                    if "WARNING" in str(warningFlag):
+                        print('{0}\n{1}\n'.format(warningFlag, innerLocation))
+                        getNumber = subprocess.Popen("bash -O extglob -c 'ls !(*.*)'", stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                        tempNumber = getNumber.communicate()[0].split()[0]
+                        if tempNumber not in aJobs:
+                            print('\n\n\n*****SCF convergence error*****\n{0}\n'.format(innerLocation))
+                            print('Restarting...\n')
+                            #replace the jobscript with one that will run on the newest hardware
+                            subprocess.Popen('rm job.slurm geometryOptimization.out', cwd=innerLocation, shell=True)
+                            time.sleep(1)
+                            jobfile = open(innerLocation+'job.slurm','w')
+                            jobfile.write('#!/bin/env bash\n\n')
+                            jobfile.write('#SBATCH --job-name="{0}"\n'.format(specie+'_'+number.split('/',1)[0]))
+                            jobfile.write('#SBATCH --output="{0}.out"\n'.format(specie+'_'+number.split('/',1)[0]))
+                            jobfile.write('#SBATCH --qos=short\n')
+                            jobfile.write('#SBATCH --cluster=mpi\n')
+                            jobfile.write('#SBATCH --nodes=2\n')
+                            jobfile.write('#SBATCH --ntasks-per-node=28\n')
+                            jobfile.write('#SBATCH --time=0-12:00:00\n\n')
+                            jobfile.write('module purge\n')
+                            jobfile.write('module load intel/2017.3.196 intel-mpi/2017.3.196 cp2k/6.1 \n\n')
+                            jobfile.write('shopt -s extglob\n')
+                            jobfile.write('ulimit -s unlimited\n\n')
+                            jobfile.write('ulimit -l unlimited\n\n')
+                            jobfile.write('date\n')
+                            jobfile.write('srun -n $SLURM_NNODES --ntasks-per-node=1 cp $SLURM_SUBMIT_DIR/* $SLURM_SCRATCH\n\n')
+                            jobfile.write('run_on_exit(){\n')
+                            jobfile.write('\tcp -R $SLURM_SCRATCH/!(job.slurm|*inp|{0}) $SLURM_SUBMIT_DIR\n'.format(specie+'_'+number.split('/',1)[0]+'.xyz'))
+                            jobfile.write('\tpkill --uid=$SLURM_JOB_USER cp2k.popt\n')
+                            jobfile.write('}\n\n')
+                            jobfile.write('trap run_on_exit EXIT\n\n')
+                            jobfile.write('cd $SLURM_SCRATCH\n\n')
+                            jobfile.write('export I_MPI_FABRICS_LIST=ofa,tmi\n')
+                            jobfile.write('export I_MPI_FALLBACK=0\n')
+                            jobfile.write('mpirun -np $SLURM_NTASKS $(which cp2k.popt) -i {0}-1.restart -o geometryOptimization.out\n\n'.format(specie+'_'+number.split('/',1)[0]))
+                            jobfile.write('cp $SLURM_SCRATCH/!(job.slurm|*inp|{0}) $SLURM_SUBMIT_DIR\n'.format(specie+'_'+number.split('/',1)[0]+'.xyz'))
+                            jobfile.write('date\n')
+                            jobfile.close()
+                            subprocess.Popen("bash -O extglob -c 'ls !(*.*) | xargs rm'", cwd=innerLocation, shell=True)
+                            startJob = subprocess.Popen('sbatch job.slurm', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
+                            jobNumber = startJob.communicate()[0].split()[3]
+                            print('{0} {1}'.format(jobNumber,specie+'_'+number))
+                            #write the new job number
+                            subprocess.Popen("bash -O extglob -c 'touch {0}'".format(jobNumber), cwd=innerLocation, shell=True)
+                    elif "OPTIMIZATION" in str(calcFlag2):
                         if "finalPositions"+specie+'_'+number+'.xyz' not in fileNames2:
                             subprocess.Popen("bash -c 'createFinalPositionsCP2K'", cwd=innerLocation, shell=True)
                         getEnergy = subprocess.Popen('grep "ENERGY| Total FORCE_EVAL" geometryOptimization.out | tail -n 1', stdout=subprocess.PIPE, cwd=innerLocation, shell=True)
@@ -177,6 +223,7 @@ if 'login0.crc.pitt.edu' in host and 'ihome' in fs:
             k = iStruct
             if iStruct in interactionsz:
                 outerLocation = '/zfs1/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
+                print('{0}'.format(outerLocation))
                 minimum, index, localMinimumLocation, tempListAllEnergies, tempListAllConfigs, optSuccess = calculationStatus( outerLocation, activeJobs, minimum, index, localMinimumLocation, optSuccess, iStruct )
             if iStruct in interactionsi:
                 outerLocation = '/ihome/kjohnson/jpr54/cp2k/interactions/' + iStruct + '/'
